@@ -2,7 +2,7 @@
 
 namespace app\controllers;
 
-use app\components\nestjs\clients\ZakupkiClient;
+use app\components\nestjs\clients\NestjsClient;
 use app\services\ParticipantService;
 use Yii;
 use yii\web\Controller;
@@ -12,20 +12,19 @@ class ParserController extends Controller
 
     public function actionHealth()
     {
-        $zakupkiClient = new ZakupkiClient();
+        $zakupkiClient = new NestjsClient();
 
         $apiStats = $zakupkiClient->getApiStats();
 
         return $this->render('health', [
             'apiStats' => $apiStats,
-            'client' => $zakupkiClient
         ]);
     }
 
     public function actionFetch()
     {
         // Создаем экземпляр клиента
-        $zakupkiClient = new ZakupkiClient();
+        $zakupkiClient = new NestjsClient();
 
         $response = $zakupkiClient->getZakupkiData();
 

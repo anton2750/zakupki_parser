@@ -2,16 +2,25 @@
 
 namespace app\components\nestjs\clients;
 
-use Yii;
 use yii\base\Component;
 
 /**
- * NestJS API Client
+ * Zakupki API Client
  * 
- * Компонент для работы с NestJS API
+ * Специализированный клиент для работы с API закупок
  */
 class NestjsClient extends Component
 {
+    /**
+     * @var string API ключ для авторизации
+     */
+    public $apiKey;
+
+    /**
+     * @var string Имя заголовка для API ключа
+     */
+    public $apiKeyHeader = 'Authorization';
+
     /**
      * @var string Базовый URL для NestJS API
      */
@@ -28,19 +37,44 @@ class NestjsClient extends Component
     public $connectTimeout = 10;
 
     /**
+     * Получить заголовки авторизации
+     *
+     * @return array
+     */
+    protected function getAuthHeaders()
+    {
+        return [
+            $this->apiKeyHeader . ': Bearer ' . $this->apiKey
+        ];
+    }
+
+    /**
+     * Конструктор
+     */
+    public function init()
+    {
+        parent::init();
+
+        // Устанавливаем API ключ из конфигурации или переменных окружения
+        if (empty($this->apiKey)) {
+            $this->apiKey = getenv('API_KEY') ?? 'supersecret';
+        }
+    }
+
+    /**
      * Получить данные о закупках
-     * 
+     *
      * @param array $headers Дополнительные заголовки
      * @return array Результат запроса
      */
-    public function getZakupki($headers = [])
+    public function getModels($headers = [])
     {
         return $this->makeRequest('GET', '/parser', null, $headers);
     }
 
     /**
      * Получить статус кэша
-     * 
+     *
      * @param array $headers Дополнительные заголовки
      * @return array Результат запроса
      */
@@ -50,8 +84,8 @@ class NestjsClient extends Component
     }
 
     /**
-     * Проверить здоровье сервиса
-     * 
+     * Проверить health
+     *
      * @param array $headers Дополнительные заголовки
      * @return array Результат запроса
      */
@@ -62,7 +96,7 @@ class NestjsClient extends Component
 
     /**
      * Выполнить HTTP запрос к NestJS API
-     * 
+     *
      * @param string $method HTTP метод
      * @param string $endpoint Эндпоинт
      * @param mixed $data Данные для отправки
@@ -72,13 +106,13 @@ class NestjsClient extends Component
     public function makeRequest($method, $endpoint, $data = null, $headers = [])
     {
         $url = $this->baseUrl . $endpoint;
-        
+
         // Базовые заголовки
         $defaultHeaders = [
             'Content-Type: application/json',
             'Accept: application/json'
         ];
-        
+
         $allHeaders = array_merge($defaultHeaders, $headers);
 
         // Инициализируем cURL
@@ -114,7 +148,7 @@ class NestjsClient extends Component
         }
 
         $decodedResponse = json_decode($response, true);
-        
+
         return [
             'success' => $httpCode >= 200 && $httpCode < 300,
             'error' => $httpCode >= 400,
@@ -129,7 +163,7 @@ class NestjsClient extends Component
 
     /**
      * Получить информацию о последнем запросе
-     * 
+     *
      * @return array
      */
     public function getLastRequestInfo()
@@ -138,6 +172,56 @@ class NestjsClient extends Component
             'base_url' => $this->baseUrl,
             'timeout' => $this->timeout,
             'connect_timeout' => $this->connectTimeout
+        ];
+    }
+
+    /**
+     * Получить данные о закупках с авторизацией
+     * 
+     * @return array Результат запроса
+     */
+    public function getZakupkiData()
+    {
+        $headers = $this->getAuthHeaders();
+        return $this->getModels($headers);
+    }
+
+    /**
+     * Получить статус кэша с авторизацией
+     * 
+     * @param array $headers Дополнительные заголовки
+     * @return array Результат запроса
+     */
+    public function getCacheStatusWithAuth($headers = [])
+    {
+        $authHeaders = $this->getAuthHeaders();
+        $allHeaders = array_merge($authHeaders, $headers);
+        return $this->getCacheStatus($allHeaders);
+    }
+
+    /**
+     * Проверить доступность API
+     * 
+     * @return bool
+     */
+    public function isApiAvailable()
+    {
+        $result = $this->getHealth();
+        return $result['success'] && $result['http_code'] === 200;
+    }
+
+    /**
+     * Получить статистику API
+     * 
+     * @return array
+     */
+    public function getApiStats()
+    {
+        $statusResult = $this->getCacheStatusWithAuth();
+
+        return [
+            'cache_status' => $statusResult,
+            'timestamp' => date('Y-m-d H:i:s')
         ];
     }
 }

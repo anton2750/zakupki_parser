@@ -2,7 +2,6 @@
 
 /** @var yii\web\View $this */
 /** @var array $apiStats */
-/** @var app\components\nestjs\clients\ZakupkiClient $client */
 
 use yii\helpers\Html;
 use yii\helpers\VarDumper;
