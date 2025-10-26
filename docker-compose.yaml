@@ -1,0 +1,109 @@
+services:
+  database:
+    image: postgres:15
+    container_name: database-container
+    environment:
+      POSTGRES_USER: ${DATABASE_USER:-user}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-password}
+      POSTGRES_DB: ${DATABASE_NAME:-nestjs_db}
+    ports:
+      - '5432:5432'
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -d postgres" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    networks:
+      - zakupki-network
+
+  nestjs:
+    build:
+      context: ./nestjs
+      dockerfile: Dockerfile
+    container_name: nestjs-container
+    ports:
+      - '3000:3000'
+    restart: always
+    depends_on:
+      - database
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-database}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_USER: ${DATABASE_USER:-user}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-password}
+      DATABASE_NAME: ${DATABASE_NAME:-nestjs_db}
+      API_KEY: ${API_KEY:-supersecret}
+    volumes:
+      - type: bind
+        source: ./downloads
+        target: /app/downloads
+    networks:
+      - zakupki-network
+
+  nginx:
+    image: nginx
+    container_name: nginx-container
+    volumes:
+      - type: bind
+        source: ./nginx/nginx.conf
+        target: /etc/nginx/nginx.conf
+      - type: bind
+        source: ./backend/
+        target: /app
+      - type: volume
+        source: phpsocket
+        target: /var/run
+        volume:
+          nocopy: true
+    depends_on:
+      - nestjs
+      - backend
+    ports:
+      - "80:80"
+    environment:
+      - NGINX_DOMAIN=${NGINX_DOMAIN:-zakupki.loc}
+    networks:
+      zakupki-network:
+        # Создаем алиас, чтобы nginx был доступен по имени zakupki.loc внутри Docker сети
+        aliases:
+          - zakupki.loc
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: always
+    container_name: backend-container
+    volumes:
+      - ./backend/:/app
+      - phpsocket:/var/run
+      # Mount logs directory for Xdebug logs
+      - ./backend/logs:/var/log
+    ports:
+      - "9003:9003"  # Xdebug port
+    environment:
+      DATABASE_HOST: ${DATABASE_HOST:-database}
+      DATABASE_PORT: ${DATABASE_PORT:-5432}
+      DATABASE_USER: ${DATABASE_USER:-user}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-password}
+      DATABASE_NAME: ${DATABASE_NAME:-nestjs_db}
+      API_KEY: ${API_KEY:-supersecret}
+      # Xdebug environment variables
+      XDEBUG_CONFIG: "client_host=host.docker.internal client_port=9003 idekey=PHPSTORM"
+      PHP_IDE_CONFIG: "serverName=zakupki.loc"
+    networks:
+      - zakupki-network
+
+networks:
+  zakupki-network:
+    name: zakupki-network
+    external: true
+    driver: bridge
+
+
+volumes:
+  phpsocket:
+  db_data:
